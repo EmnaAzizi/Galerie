@@ -13,124 +13,130 @@ exports.showGalerie = functions.https.onRequest((request, response) => {
   // Get user ID
   const userId = request.query["messenger user id"];
   // Get user Choices
-  const choices = request.query["choices"];
+  //  const choices = request.query["choices"];
+  var ref = admin.database().ref("users/" + userId.toString());
+  ref.once("value").then(function(snapshot) {
+    var choices = snapshot.val().favoris;
 
-  let choices_arr = choices.split(",");
+    let choices_arr = choices.split(",");
 
-  var publicationsRef = admin
-    .database()
-    .ref()
-    .child("publications");
+    var publicationsRef = admin
+      .database()
+      .ref()
+      .child("publications");
 
-  // Get user publications list
+    // Get user publications list
 
-  publicationsRef.once("value").then(function(snapshot) {
-    snapshot.forEach(function(childSnapshot) {
-      var childKey = childSnapshot.key;
-      var childData = childSnapshot.val();
-      for (var i = 0; i < choices_arr.length; i++) {
-        // if user choice exist in title's name
+    publicationsRef.once("value").then(function(snapshot) {
+      snapshot.forEach(function(childSnapshot) {
+        var childKey = childSnapshot.key;
+        var childData = childSnapshot.val();
+        for (var i = 0; i < choices_arr.length; i++) {
+          // if user choice exist in title's name
 
-        if (childKey.includes(choices_arr[i] + "_")) {
-          cards.push({
-            key: childKey,
-            URL_achat: childData.URL_achat,
-            URL_couv: childData.URL_couv,
-            date_parution: childData.date_parution,
-            numero: childData.numero,
-            sommaire: childData.sommaire,
-            tags: childData.tags,
-            titre: childData.titre,
-            titre_short: childData.titre_short
+          if (childKey.includes(choices_arr[i] + "_")) {
+            cards.push({
+              key: childKey,
+              URL_achat: childData.URL_achat,
+              URL_couv: childData.URL_couv,
+              date_parution: childData.date_parution,
+              numero: childData.numero,
+              sommaire: childData.sommaire,
+              tags: childData.tags,
+              titre: childData.titre,
+              titre_short: childData.titre_short
+            });
+          }
+        }
+      });
+      // sort cards by date
+      cards = cards.sort((a, b) =>
+        a.date_parution < b.date_parution ? 1 : -1
+      );
+
+      //create card
+      cards.forEach(function(childData) {
+        card = {
+          title: childData.titre + " n°" + childData.numero,
+          image_url: childData.URL_couv,
+          subtitle: childData.tags,
+          messenger_extensions: true,
+          default_action: {
+            type: "web_url",
+            url: childData.URL_couv
+          },
+          buttons: [
+            {
+              type: "show_block",
+              block_names: ["Sommaire"],
+              title: "\ud83d\udcdd Sommaire",
+              set_attributes: {
+                publication: childData.key
+              }
+            },
+            {
+              type: "show_block",
+              block_names: ["Share"],
+              title: "\ud83d\udc8c Envoyer à un ami",
+              set_attributes: {
+                publication: childData.key
+              }
+            }
+          ]
+        };
+        //Bouton d'achat
+        if (
+          childData.URL_achat != undefined &&
+          childData.URL_achat != "" &&
+          childData.URL_achat != ""
+        ) {
+          card.buttons.push({
+            type: "web_url",
+            url: childData.URL_achat,
+            title: "\ud83d\uded2 Acheter"
           });
         }
-      }
-    });
-    // sort cards by date
-    cards = cards.sort((a, b) => (a.date_parution < b.date_parution ? 1 : -1));
 
-    //create card
-    cards.forEach(function(childData) {
-      card = {
-        title: childData.titre + " n°" + childData.numero,
-        image_url: childData.URL_couv,
-        subtitle: childData.tags,
-        messenger_extensions: true,
-        default_action: {
-          type: "web_url",
-          url: childData.URL_couv
-        },
-        buttons: [
+        //Add card to gallery
+
+        elements1.push(card);
+      });
+
+      // add navigations buttons
+      var boutonsNavigation = [];
+
+      boutonsNavigation.push({
+        type: "show_block",
+        block_names: ["ShowWebview"],
+        title: "Menu"
+      });
+
+      elements1.push({
+        title: "Navigation",
+        image_url:
+          "https://res.cloudinary.com/newspayper/image/upload/b_rgb:474747,c_fit,e_shadow,h_970,q_90/b_rgb:00ADEF,c_lpad,h_1125,w_1125/Divers/presse_square-small.jpg",
+        subtitle: "Utiliser les options ci-dessous",
+        buttons: boutonsNavigation
+      });
+
+      // return the gallery,
+      res = {
+        messages: [
           {
-            type: "show_block",
-            block_names: ["Sommaire"],
-            title: "\ud83d\udcdd Sommaire",
-            set_attributes: {
-              publication: childData.key
-            }
-          },
-          {
-            type: "show_block",
-            block_names: ["Share"],
-            title: "\ud83d\udc8c Envoyer à un ami",
-            set_attributes: {
-              publication: childData.key
+            attachment: {
+              type: "template",
+              payload: {
+                template_type: "generic",
+                image_aspect_ratio: "square",
+                elements: elements1
+              }
             }
           }
         ]
       };
-      //Bouton d'achat
-      if (
-        childData.URL_achat != undefined &&
-        childData.URL_achat != "" &&
-        childData.URL_achat != ""
-      ) {
-        card.buttons.push({
-          type: "web_url",
-          url: childData.URL_achat,
-          title: "\ud83d\uded2 Acheter"
-        });
-      }
-
-      //Add card to gallery
-
-      elements1.push(card);
+      console.log("hey this is the response ", res.toString());
+      return response.json(res);
     });
-
-    // add navigations buttons
-    var boutonsNavigation = [];
-
-    boutonsNavigation.push({
-      type: "show_block",
-      block_names: ["ShowWebview"],
-      title: "Menu"
-    });
-
-    elements1.push({
-      title: "Navigation",
-      image_url:
-        "https://res.cloudinary.com/newspayper/image/upload/b_rgb:474747,c_fit,e_shadow,h_970,q_90/b_rgb:00ADEF,c_lpad,h_1125,w_1125/Divers/presse_square-small.jpg",
-      subtitle: "Utiliser les options ci-dessous",
-      buttons: boutonsNavigation
-    });
-
-    // return the gallery,
-    res = {
-      messages: [
-        {
-          attachment: {
-            type: "template",
-            payload: {
-              template_type: "generic",
-              image_aspect_ratio: "square",
-              elements: elements1
-            }
-          }
-        }
-      ]
-    };
-    console.log("hey this is the response ", res.toString());
-    return response.json(res);
   });
 });
 
